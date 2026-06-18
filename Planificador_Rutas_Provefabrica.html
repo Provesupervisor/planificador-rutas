@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="es-PE">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Planificador de Rutas · Provefabrica</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root{
+    --bg:#0e1419;
+    --panel:#161f28;
+    --panel-2:#1d2935;
+    --line:#2a3744;
+    --ink:#e8eef3;
+    --ink-soft:#9fb0bd;
+    --ink-mute:#6c7d8a;
+    --amber:#f5a623;
+    --amber-deep:#c47f12;
+    --teal:#2dd4bf;
+    --red:#ef5350;
+    --green:#4caf50;
+    --route:#f5a623;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+    --r:10px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    font-size:14px;
+    display:flex;flex-direction:column;height:100vh;overflow:hidden;
+  }
+  /* ---- header ---- */
+  header{
+    background:linear-gradient(100deg,#13202b,#1a2b38);
+    border-bottom:1px solid var(--line);
+    padding:10px 18px;display:flex;align-items:center;gap:14px;flex-shrink:0;
+  }
+  header .brand{display:flex;flex-direction:column;line-height:1.1}
+  header .brand b{font-size:16px;letter-spacing:.3px}
+  header .brand span{font-size:11px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:1.5px}
+  header .mark{
+    width:34px;height:34px;border-radius:8px;flex-shrink:0;
+    background:var(--amber);display:grid;place-items:center;color:#13202b;font-weight:800;font-size:18px;
+    box-shadow:0 2px 0 var(--amber-deep);
+  }
+  header .spacer{flex:1}
+  .pill{font-size:11px;color:var(--ink-soft);background:var(--panel-2);border:1px solid var(--line);
+    padding:5px 10px;border-radius:20px;display:flex;align-items:center;gap:6px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ink-mute)}
+  .dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.warn{background:var(--amber)}
+  .dot.err{background:var(--red)}
+  /* ---- layout ---- */
+  .wrap{display:flex;flex:1;min-height:0}
+  aside{
+    width:360px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0;
+  }
+  main{flex:1;position:relative;min-width:0}
+  #map{position:absolute;inset:0;background:#0a0f13}
+  /* ---- panel sections ---- */
+  .sec{border-bottom:1px solid var(--line);padding:14px 16px}
+  .sec h3{margin:0 0 10px;font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--amber);font-weight:700;
+    display:flex;align-items:center;gap:7px}
+  .sec h3 .n{background:var(--amber);color:#13202b;width:18px;height:18px;border-radius:5px;display:grid;place-items:center;font-size:11px}
+  label.fld{display:block;font-size:11px;color:var(--ink-soft);margin:8px 0 4px}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--amber)}
+  textarea{resize:vertical;min-height:54px}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  button{
+    cursor:pointer;border:none;border-radius:8px;font-family:inherit;font-weight:600;font-size:13px;
+    padding:9px 12px;transition:.15s;
+  }
+  .btn-primary{background:var(--amber);color:#13202b;box-shadow:0 2px 0 var(--amber-deep)}
+  .btn-primary:hover{filter:brightness(1.05)}
+  .btn-primary:active{transform:translateY(1px);box-shadow:none}
+  .btn-primary:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+  .btn-ghost{background:var(--panel-2);color:var(--ink);border:1px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--amber);color:var(--amber)}
+  .btn-mini{padding:6px 9px;font-size:12px}
+  .hint{font-size:11px;color:var(--ink-mute);margin-top:6px;line-height:1.45}
+  .hint a{color:var(--teal)}
+  /* ---- stops list ---- */
+  .listwrap{flex:1;overflow-y:auto;min-height:0}
+  .listwrap::-webkit-scrollbar{width:8px}
+  .listwrap::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px}
+  .stophdr{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 6px;position:sticky;top:0;background:var(--panel);z-index:2}
+  .stophdr span{font-size:11px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:1px}
+  .stop{display:flex;gap:10px;align-items:flex-start;padding:9px 16px;border-bottom:1px solid #1c2730;cursor:pointer}
+  .stop:hover{background:var(--panel-2)}
+  .stop.origin{background:#1a2530}
+  .seq{flex-shrink:0;width:24px;height:24px;border-radius:6px;background:var(--amber);color:#13202b;
+    font-weight:800;font-size:12px;display:grid;place-items:center;margin-top:1px}
+  .stop.origin .seq{background:var(--teal)}
+  .stop .body{flex:1;min-width:0}
+  .stop .body b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stop .body small{display:block;color:var(--ink-mute);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stop .leg{flex-shrink:0;text-align:right;font-size:11px;color:var(--teal);margin-top:2px}
+  .chofer-tag{display:inline-block;font-size:10px;background:var(--panel-2);border:1px solid var(--line);
+    padding:1px 6px;border-radius:10px;color:var(--ink-soft);margin-top:3px}
+  .stoprow{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap}
+  .zsel{font-size:10px;padding:2px 4px;border-radius:6px;background:var(--panel-2);
+    border:1px solid var(--line);color:var(--ink-soft);max-width:120px;cursor:pointer}
+  .zsel:hover{border-color:var(--amber)}
+  /* ---- summary ---- */
+  .summary{display:flex;gap:6px;padding:12px 14px;background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .kpi{flex:1;text-align:center}
+  .kpi b{display:block;font-size:16px;color:var(--amber);font-weight:800;line-height:1.2}
+  .kpi span{font-size:9px;color:var(--ink-mute);text-transform:uppercase;letter-spacing:.3px}
+  #kTotal{color:var(--teal)}
+  /* ---- zonas ---- */
+  .zonachecks{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:6px}
+  .zchk{display:flex;align-items:center;gap:6px;background:var(--panel-2);border:1px solid var(--line);
+    border-radius:7px;padding:6px 8px;cursor:pointer;font-size:12px;user-select:none}
+  .zchk:hover{border-color:var(--amber)}
+  .zchk input{margin:0;accent-color:var(--amber);flex-shrink:0}
+  .zdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .zname{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .zcount{color:var(--ink-mute);font-size:11px;font-weight:700}
+  .zaviso{margin-top:8px;background:rgba(245,166,35,.12);border:1px solid var(--amber-deep);
+    color:var(--amber);border-radius:7px;padding:7px 9px;font-size:11px;line-height:1.4}
+  /* ---- toast / status ---- */
+  #status{padding:9px 16px;font-size:12px;color:var(--ink-soft);background:#11212c;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;min-height:38px}
+  .spin{width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--amber);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  /* ---- map markers ---- */
+  .mk{background:var(--amber);color:#13202b;width:26px;height:26px;border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg);display:grid;place-items:center;font-weight:800;font-size:12px;
+    border:2px solid #13202b;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+  .mk b{transform:rotate(45deg)}
+  .mk.origin{background:var(--teal);border-radius:6px;transform:none}
+  .mk.origin b{transform:none}
+  .leaflet-popup-content-wrapper{background:var(--panel);color:var(--ink);border-radius:8px}
+  .leaflet-popup-tip{background:var(--panel)}
+  .pop b{color:var(--amber)}
+  .pop small{color:var(--ink-mute)}
+  .pop a{color:var(--teal)}
+  /* ---- export bar ---- */
+  .exportbar{padding:12px 16px;display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line)}
+  /* ---- mobile ---- */
+  @media(max-width:820px){
+    .wrap{flex-direction:column}
+    aside{width:100%;max-height:50vh}
+    main{min-height:50vh}
+  }
+  .muted{color:var(--ink-mute)}
+  .err-txt{color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">P</div>
+  <div class="brand"><b>Planificador de Rutas</b><span>Provefabrica · Distribución</span></div>
+  <div class="spacer"></div>
+  <div class="pill"><span class="dot" id="netdot"></span><span id="netlbl">Sin conectar</span></div>
+</header>
+
+<div class="wrap">
+  <aside>
+    <div id="status"><span class="muted">Listo. Conecta tu Google Sheets para empezar.</span></div>
+
+    <div class="sec">
+      <h3><span class="n">1</span> Origen de datos</h3>
+      <label class="fld">URL del Google Sheets (compartido como "cualquiera con el enlace")</label>
+      <input type="text" id="sheetUrl" placeholder="https://docs.google.com/spreadsheets/d/...">
+      <div class="row" style="margin-top:8px">
+        <button class="btn-primary" id="btnLoad">Cargar paradas</button>
+        <button class="btn-ghost btn-mini" id="btnPaste" title="Pegar CSV manualmente">Pegar CSV</button>
+      </div>
+      <div class="hint">Si la lectura automática falla (organización con restricciones), usa <b>Pegar CSV</b>: en tu Sheets ve a Archivo › Descargar › CSV y pega el contenido.</div>
+      <textarea id="csvPaste" placeholder="Pega aquí el CSV..." style="display:none;margin-top:8px"></textarea>
+      <button class="btn-ghost btn-mini" id="btnPasteGo" style="display:none;margin-top:8px;width:100%">Procesar CSV pegado</button>
+    </div>
+
+    <div class="sec">
+      <h3><span class="n">2</span> Punto de partida</h3>
+      <div class="row">
+        <div><label class="fld">Latitud</label><input type="number" id="oLat" step="any" value="-12.008767"></div>
+        <div><label class="fld">Longitud</label><input type="number" id="oLng" step="any" value="-76.949514"></div>
+      </div>
+      <label class="fld">Nombre del origen</label>
+      <input type="text" id="oName" value="Almacén Central Huachipa">
+      <div class="hint">Predeterminado: Almacenes Central Huachipa (Av. Los Tucanes S/N). Edítalo o haz clic derecho en el mapa para reubicarlo.</div>
+    </div>
+
+    <div class="sec">
+      <h3><span class="n">3</span> Filtrar y optimizar</h3>
+      <div class="row">
+        <div><label class="fld">Chofer / unidad</label><select id="selChofer"><option value="__all__">Todos</option></select></div>
+        <div><label class="fld">Fecha</label><select id="selFecha"><option value="__all__">Todas</option></select></div>
+      </div>
+
+      <label class="fld" style="margin-top:12px">Zonas técnicas <span class="muted">(marca una o varias para combinar)</span></label>
+      <div id="zonaChecks" class="zonachecks"></div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn-ghost btn-mini" id="btnZonaAll">Todas</button>
+        <button class="btn-ghost btn-mini" id="btnZonaNone">Ninguna</button>
+      </div>
+      <div class="zaviso" id="zonaAviso" style="display:none"></div>
+
+      <div class="row" style="margin-top:12px">
+        <div><label class="fld">Servicio por parada (min)</label><input type="number" id="svcMin" min="0" step="1" value="15"></div>
+        <div><label class="fld">Factor de tráfico</label><input type="number" id="trafFac" min="1" step="0.1" value="1.5"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn-primary" id="btnOpt" disabled>Optimizar ruta</button>
+        <button class="btn-ghost btn-mini" id="btnClear" title="Limpiar ruta">Limpiar</button>
+      </div>
+      <div class="hint" id="engineNote">Motor: calles reales (OSRM). El <b>tiempo de manejo</b> viene de OSRM (flujo libre); el <b>factor de tráfico</b> lo ajusta a la realidad de Lima y el <b>servicio por parada</b> suma la descarga/entrega.</div>
+    </div>
+
+    <div class="summary" id="summary" style="display:none">
+      <div class="kpi"><b id="kStops">0</b><span>Paradas</span></div>
+      <div class="kpi"><b id="kDist">0</b><span>Km ruta</span></div>
+      <div class="kpi"><b id="kDrive">0</b><span>Manejo</span></div>
+      <div class="kpi"><b id="kTotal">0</b><span>Total real</span></div>
+    </div>
+
+    <div class="listwrap">
+      <div class="stophdr"><span id="listTitle">Paradas</span><span id="listCount"></span></div>
+      <div id="stopList"></div>
+    </div>
+
+    <div class="exportbar">
+      <button class="btn-ghost" id="btnGmaps" disabled>Abrir ruta en Google Maps</button>
+      <button class="btn-ghost" id="btnWaze" disabled>Abrir siguiente parada en Waze</button>
+      <div class="hint">Google Maps admite hasta ~9 destinos por enlace. Si hay más, se divide en tramos automáticamente.</div>
+    </div>
+  </aside>
+
+  <main><div id="map"></div></main>
+</div>
+
+<script>
+/* ============================================================
+   Planificador de Rutas · Provefabrica
+   Autocontenido. Lee Google Sheets en vivo (gviz CSV).
+   Optimización por calles reales (OSRM) con respaldo Haversine.
+   ============================================================ */
+const $ = id => document.getElementById(id);
+const fmtKm = m => (m/1000).toLocaleString('es-PE',{minimumFractionDigits:1,maximumFractionDigits:1});
+const fmtMin = s => { const m=Math.round(s/60); if(m<60) return m+' min'; const h=Math.floor(m/60); return h+'h '+(m%60)+'m'; };
+
+let allRows=[];          // todas las filas parseadas
+let stops=[];            // paradas del filtro actual
+let ordered=[];          // paradas en orden óptimo
+let origin={lat:-12.008767,lng:-76.949514,name:'Almacén Central Huachipa'};
+let map, layerMarkers, layerRoute, originMarker;
+
+/* ============================================================
+   ZONAS TÉCNICAS (6 corredores logísticos desde Huachipa)
+   Centroides aproximados por distrito-ancla de cada zona.
+   La asignación es por cercanía al centroide; editable a mano.
+   ============================================================ */
+const ZONAS = {
+  ESTE:    {nombre:'Lima Este',    color:'#9b87c7', lat:-12.0265, lng:-76.9490}, // ATE / Santa Anita / SJL — corredor Huachipa
+  SUR:     {nombre:'Lima Sur',     color:'#e8826b', lat:-12.2050, lng:-76.9380}, // VES / Panamericana Sur
+  CENTRO:  {nombre:'Lima Centro',  color:'#d4a04f', lat:-12.0560, lng:-77.0350}, // Cercado / La Victoria
+  MODERNA: {nombre:'Lima Moderna', color:'#d986b5', lat:-12.1100, lng:-77.0250}, // San Isidro / Miraflores / Surco
+  NORTE:   {nombre:'Lima Norte',   color:'#5eb8a8', lat:-11.9500, lng:-77.0650}, // Los Olivos / Comas / Panam. Norte
+  CALLAO:  {nombre:'Callao',       color:'#6b9ed8', lat:-12.0500, lng:-77.1200}  // Región Callao
+};
+const ZONA_KEYS = Object.keys(ZONAS);
+
+// Adyacencia: qué zonas comparten corredor (para avisar combinaciones lejanas)
+const ZONA_ADJ = {
+  ESTE:    ['CENTRO','NORTE','SUR'],
+  SUR:     ['ESTE','MODERNA','CENTRO'],
+  CENTRO:  ['ESTE','MODERNA','NORTE','CALLAO'],
+  MODERNA: ['CENTRO','SUR','CALLAO'],
+  NORTE:   ['ESTE','CENTRO','CALLAO'],
+  CALLAO:  ['CENTRO','NORTE','MODERNA']
+};
+
+function distKm(aLat,aLng,bLat,bLng){
+  const R=6371, rad=x=>x*Math.PI/180;
+  const dLat=rad(bLat-aLat), dLng=rad(bLng-aLng);
+  const x=Math.sin(dLat/2)**2+Math.cos(rad(aLat))*Math.cos(rad(bLat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+// Asigna la zona técnica más cercana a una coordenada
+function asignarZona(lat,lng){
+  let best=ZONA_KEYS[0], bd=Infinity;
+  for(const k of ZONA_KEYS){
+    const d=distKm(lat,lng,ZONAS[k].lat,ZONAS[k].lng);
+    if(d<bd){bd=d;best=k;}
+  }
+  return best;
+}
+// ¿Las zonas seleccionadas incluyen un par no adyacente? Devuelve los pares lejanos.
+function paresLejanos(keys){
+  const pares=[];
+  for(let i=0;i<keys.length;i++)
+    for(let j=i+1;j<keys.length;j++){
+      const a=keys[i],b=keys[j];
+      if(!ZONA_ADJ[a].includes(b)) pares.push([a,b]);
+    }
+  return pares;
+}
+
+
+/* ---------- mapa ---------- */
+function initMap(){
+  if(typeof L==='undefined'){ setStatus('No se pudo cargar el mapa (sin conexión a Leaflet). Revisa tu internet.','err'); return; }
+  map = L.map('map',{zoomControl:true}).setView([origin.lat,origin.lng],11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, attribution:'© OpenStreetMap'
+  }).addTo(map);
+  layerMarkers = L.layerGroup().addTo(map);
+  layerRoute = L.layerGroup().addTo(map);
+  drawOrigin();
+  map.on('contextmenu', e=>{
+    origin.lat=e.latlng.lat; origin.lng=e.latlng.lng;
+    $('oLat').value=origin.lat.toFixed(6); $('oLng').value=origin.lng.toFixed(6);
+    drawOrigin();
+    setStatus('Origen reubicado en el mapa.','ok');
+  });
+}
+function drawOrigin(){
+  if(!map) return;
+  if(originMarker) map.removeLayer(originMarker);
+  const ic=L.divIcon({className:'',html:'<div class="mk origin"><b>★</b></div>',iconSize:[26,26],iconAnchor:[13,13]});
+  originMarker=L.marker([origin.lat,origin.lng],{icon:ic}).addTo(map)
+    .bindPopup('<div class="pop"><b>Origen</b><br>'+esc(origin.name)+'</div>');
+}
+
+/* ---------- estado ---------- */
+function setStatus(msg,type){
+  const el=$('status');
+  let icon='';
+  if(type==='load') icon='<span class="spin"></span>';
+  el.innerHTML = icon + '<span class="'+(type==='err'?'err-txt':'muted')+'">'+msg+'</span>';
+}
+function setNet(state,label){
+  const d=$('netdot'); d.className='dot'+(state?(' '+state):'');
+  $('netlbl').textContent=label;
+}
+
+/* ---------- utilidades ---------- */
+function esc(s){return (s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function num(v){ if(v==null) return NaN; const x=parseFloat(String(v).replace(',','.').trim()); return x; }
+
+/* ---------- parser CSV robusto ---------- */
+function parseCSV(text){
+  const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; }
+      else cur+=c;
+    }else{
+      if(c==='"') q=true;
+      else if(c===','){ row.push(cur);cur=''; }
+      else if(c==='\n'){ row.push(cur);rows.push(row);row=[];cur=''; }
+      else if(c==='\r'){}
+      else cur+=c;
+    }
+  }
+  if(cur.length||row.length){ row.push(cur);rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==''));
+}
+
+/* ---------- detección de columnas ---------- */
+function colIndex(headers,...names){
+  const norm=s=>s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim();
+  const H=headers.map(norm);
+  for(const n of names){
+    const i=H.indexOf(norm(n));
+    if(i>=0) return i;
+  }
+  // coincidencia parcial
+  for(const n of names){
+    const nn=norm(n);
+    const i=H.findIndex(h=>h.includes(nn));
+    if(i>=0) return i;
+  }
+  return -1;
+}
+
+function ingest(rows){
+  if(rows.length<2){ setStatus('El archivo no tiene filas de datos.','err'); return; }
+  const headers=rows[0];
+  const ci={
+    fact: colIndex(headers,'Factura'),
+    cli:  colIndex(headers,'Cliente'),
+    lat:  colIndex(headers,'Latitud','lat'),
+    lng:  colIndex(headers,'Longitud','lng','lon'),
+    cho:  colIndex(headers,'Chofer','conductor','driver'),
+    map:  colIndex(headers,'Enlace maps','enlace','maps','url'),
+    ts:   colIndex(headers,'Marca temporal','fecha','timestamp')
+  };
+  if(ci.lat<0||ci.lng<0){
+    setStatus('No encuentro columnas de Latitud/Longitud. Revisa las cabeceras del Sheets.','err');
+    return;
+  }
+  const out=[]; let bad=0;
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r];
+    const la=num(row[ci.lat]), ln=num(row[ci.lng]);
+    if(isNaN(la)||isNaN(ln)||la===0||ln===0){ bad++; continue; }
+    const tsRaw = ci.ts>=0?row[ci.ts]:'';
+    out.push({
+      factura: ci.fact>=0?row[ci.fact]:'',
+      cliente: ci.cli>=0?(row[ci.cli]||'Sin nombre'):'Sin nombre',
+      lat:la, lng:ln,
+      chofer: ci.cho>=0?(row[ci.cho]||'Sin asignar').trim():'Sin asignar',
+      maps: ci.map>=0?row[ci.map]:'',
+      ts: tsRaw,
+      fecha: parseFecha(tsRaw),        // YYYY-MM-DD para filtrar
+      zona: asignarZona(la,ln)         // zona técnica auto (editable)
+    });
+  }
+  allRows=out;
+  let msg=out.length+' paradas cargadas.';
+  if(bad>0) msg+=' ('+bad+' fila(s) sin coordenadas válidas omitidas)';
+  setStatus(msg,'ok');
+  buildChoferFilter();
+  buildFechaFilter();
+  buildZonaFilter();
+  applyFilter();
+  $('btnOpt').disabled = out.length===0;
+}
+
+/* Extrae YYYY-MM-DD de una marca temporal de Google Forms
+   (admite formatos d/m/Y, Y-m-d, con o sin hora) */
+function parseFecha(s){
+  if(!s) return '';
+  s=String(s).trim();
+  // ISO: 2026-06-18 ...
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  // d/m/Y o m/d/Y (Google Forms PE suele ser d/m/Y)
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(m){
+    const a=m[1].padStart(2,'0'), b=m[2].padStart(2,'0');
+    return m[3]+'-'+b+'-'+a; // asume d/m/Y
+  }
+  return '';
+}
+
+/* ---------- filtros ---------- */
+function buildChoferFilter(){
+  const set=[...new Set(allRows.map(r=>r.chofer))].sort();
+  const sel=$('selChofer');
+  sel.innerHTML='<option value="__all__">Todos los choferes ('+allRows.length+')</option>';
+  set.forEach(c=>{
+    const n=allRows.filter(r=>r.chofer===c).length;
+    const o=document.createElement('option'); o.value=c; o.textContent=c+' ('+n+')';
+    sel.appendChild(o);
+  });
+}
+function buildFechaFilter(){
+  const set=[...new Set(allRows.map(r=>r.fecha).filter(Boolean))].sort().reverse();
+  const sel=$('selFecha');
+  sel.innerHTML='<option value="__all__">Todas las fechas</option>';
+  set.forEach(f=>{
+    const n=allRows.filter(r=>r.fecha===f).length;
+    const o=document.createElement('option'); o.value=f;
+    o.textContent=fechaLabel(f)+' ('+n+')';
+    sel.appendChild(o);
+  });
+}
+function fechaLabel(f){
+  const [y,m,d]=f.split('-');
+  return d+'/'+m+'/'+y;
+}
+// checkboxes de zona, con conteo dinámico
+function buildZonaFilter(){
+  const cont=$('zonaChecks'); cont.innerHTML='';
+  ZONA_KEYS.forEach(k=>{
+    const n=allRows.filter(r=>r.zona===k).length;
+    const id='z_'+k;
+    const wrap=document.createElement('label');
+    wrap.className='zchk';
+    wrap.innerHTML='<input type="checkbox" id="'+id+'" value="'+k+'" checked>'+
+      '<span class="zdot" style="background:'+ZONAS[k].color+'"></span>'+
+      '<span class="zname">'+ZONAS[k].nombre+'</span>'+
+      '<span class="zcount">'+n+'</span>';
+    wrap.querySelector('input').onchange=applyFilter;
+    cont.appendChild(wrap);
+  });
+}
+function zonasSeleccionadas(){
+  return ZONA_KEYS.filter(k=>{ const el=$('z_'+k); return el && el.checked; });
+}
+function applyFilter(){
+  if(allRows.length===0) return;
+  const fCho=$('selChofer').value;
+  const fFec=$('selFecha').value;
+  const zonas=zonasSeleccionadas();
+  stops = allRows.filter(r=>
+    (fCho==='__all__'||r.chofer===fCho) &&
+    (fFec==='__all__'||r.fecha===fFec) &&
+    zonas.includes(r.zona)
+  );
+  ordered=[];
+  $('summary').style.display='none';
+  $('btnGmaps').disabled=true; $('btnWaze').disabled=true;
+
+  // aviso de zonas lejanas combinadas
+  const lejanos=paresLejanos(zonas);
+  const aviso=$('zonaAviso');
+  if(zonas.length>1 && lejanos.length>0){
+    const txt=lejanos.map(p=>ZONAS[p[0]].nombre+' + '+ZONAS[p[1]].nombre).join(', ');
+    aviso.innerHTML='⚠ Combinas zonas no adyacentes ('+txt+'). La ruta puede cruzar conos lejanos.';
+    aviso.style.display='block';
+  }else{
+    aviso.style.display='none';
+  }
+
+  renderStops(false);
+  drawMarkers(stops,false);
+  fitTo([origin,...stops]);
+}
+
+/* ---------- render lista ---------- */
+function renderStops(isOpt){
+  const list=$('stopList'); list.innerHTML='';
+  const data = isOpt?ordered:stops;
+  $('listTitle').textContent = isOpt?'Ruta optimizada':'Paradas';
+  $('listCount').textContent = data.length+' pts';
+
+  if(isOpt){
+    const oEl=document.createElement('div');
+    oEl.className='stop origin';
+    oEl.innerHTML='<div class="seq">★</div><div class="body"><b>'+esc(origin.name)+'</b><small>Punto de partida</small></div>';
+    oEl.onclick=()=>{map.setView([origin.lat,origin.lng],14);};
+    list.appendChild(oEl);
+  }
+  data.forEach((s,i)=>{
+    const el=document.createElement('div');
+    el.className='stop';
+    const leg = isOpt&&s._legDist!=null ? '<div class="leg">'+fmtKm(s._legDist)+' km<br>'+fmtMin(s._legTime)+'</div>' : '';
+    // selector de zona (corrección manual)
+    let zsel='<select class="zsel" data-cli="'+esc(s.cliente)+'" data-lat="'+s.lat+'" data-lng="'+s.lng+'">';
+    ZONA_KEYS.forEach(k=>{ zsel+='<option value="'+k+'"'+(s.zona===k?' selected':'')+'>'+ZONAS[k].nombre+'</option>'; });
+    zsel+='</select>';
+    el.innerHTML='<div class="seq" style="background:'+(isOpt?'var(--amber)':(ZONAS[s.zona]?ZONAS[s.zona].color:'var(--amber)'))+'">'+(i+1)+'</div>'+
+      '<div class="body"><b>'+esc(s.cliente)+'</b>'+
+      '<small>'+(s.factura?('F: '+esc(s.factura)+' · '):'')+s.lat.toFixed(4)+', '+s.lng.toFixed(4)+'</small>'+
+      '<div class="stoprow"><span class="chofer-tag">'+esc(s.chofer)+'</span>'+zsel+'</div></div>'+leg;
+    el.querySelector('.seq').onclick=el.querySelector('b').onclick=()=>{ map.setView([s.lat,s.lng],15); openPop(s,i+1,isOpt); };
+    // cambio de zona manual
+    const sel=el.querySelector('.zsel');
+    sel.onclick=e=>e.stopPropagation();
+    sel.onchange=e=>{
+      const nuevaZona=e.target.value;
+      // localizar la fila real en allRows por coordenadas
+      const row=allRows.find(r=>r.lat===s.lat&&r.lng===s.lng&&r.cliente===s.cliente);
+      if(row){ row.zona=nuevaZona; }
+      buildZonaFilter(); applyFilter();
+      setStatus('Zona de "'+s.cliente+'" cambiada a '+ZONAS[nuevaZona].nombre+'.','ok');
+    };
+    list.appendChild(el);
+  });
+}
+
+/* ---------- marcadores ---------- */
+let popups=[];
+function drawMarkers(data,isOpt){
+  if(!layerMarkers) return;
+  layerMarkers.clearLayers(); popups=[];
+  data.forEach((s,i)=>{
+    // sin optimizar: color por zona. Optimizado: ámbar con secuencia.
+    const col = isOpt ? '#f5a623' : (ZONAS[s.zona]?ZONAS[s.zona].color:'#f5a623');
+    const ic=L.divIcon({className:'',html:'<div class="mk" style="background:'+col+'"><b>'+(i+1)+'</b></div>',iconSize:[26,26],iconAnchor:[13,26]});
+    const m=L.marker([s.lat,s.lng],{icon:ic}).addTo(layerMarkers);
+    const zn = ZONAS[s.zona]?ZONAS[s.zona].nombre:'—';
+    const pop='<div class="pop"><b>'+(i+1)+'. '+esc(s.cliente)+'</b><br>'+
+      (s.factura?'<small>Factura: '+esc(s.factura)+'</small><br>':'')+
+      '<small>Chofer: '+esc(s.chofer)+'</small><br>'+
+      '<small>Zona: '+zn+(s.fecha?' · '+fechaLabel(s.fecha):'')+'</small><br>'+
+      (s.maps?'<a href="'+esc(s.maps)+'" target="_blank">Ver en Maps ↗</a>':'')+'</div>';
+    m.bindPopup(pop); popups.push(m);
+  });
+}
+function openPop(s,i,isOpt){ const m=popups[i-1]; if(m) m.openPopup(); }
+
+function fitTo(pts){
+  if(!map||!pts.length) return;
+  const b=L.latLngBounds(pts.map(p=>[p.lat,p.lng]));
+  map.fitBounds(b,{padding:[50,50],maxZoom:14});
+}
+
+/* ============================================================
+   OPTIMIZACIÓN
+   1) Construye matriz de tiempos con OSRM /table
+   2) Resuelve TSP (vecino más cercano + 2-opt)
+   3) Pide geometría real con OSRM /route para dibujar
+   Respaldo: si OSRM falla -> matriz Haversine
+   ============================================================ */
+async function optimize(){
+  if(stops.length===0){ setStatus('No hay paradas para optimizar.','err'); return; }
+  origin.lat=num($('oLat').value); origin.lng=num($('oLng').value); origin.name=$('oName').value||'Origen';
+  drawOrigin();
+  $('btnOpt').disabled=true;
+  setStatus('Calculando ruta por calles reales…','load');
+  setNet('warn','Consultando OSRM');
+
+  const pts=[origin,...stops]; // índice 0 = origen
+  let matrix=null, usedReal=false;
+  try{
+    matrix = await osrmTable(pts);
+    usedReal=true;
+    setNet('on','OSRM conectado');
+  }catch(err){
+    setStatus('Servicio de calles no disponible — usando cercanía geográfica como respaldo.','load');
+    setNet('err','OSRM sin respuesta');
+    matrix = haversineMatrix(pts);
+  }
+
+  // TSP: ruta abierta desde el origen (no regresa)
+  const order = solveTSP(matrix, pts.length);
+
+  // reordenar paradas (quitando el origen, índice 0)
+  ordered = order.slice(1).map(idx=>stops[idx-1]);
+
+  // leer parámetros de ajuste
+  const svcMin = Math.max(0, num($('svcMin').value)||0);   // minutos de servicio por parada
+  const trafFac = Math.max(1, num($('trafFac').value)||1); // factor de tráfico (>=1)
+
+  // distancias de cada tramo (tiempo de manejo crudo de OSRM)
+  let totDist=0, totDrive=0;
+  for(let k=1;k<order.length;k++){
+    const a=order[k-1], b=order[k];
+    const d=matrix.dist[a][b], t=matrix.time[a][b];
+    totDist+=d; totDrive+=t;
+    ordered[k-1]._legDist=d;
+    ordered[k-1]._legTime=t*trafFac; // tramo mostrado ya con tráfico
+  }
+
+  const driveAdj = totDrive*trafFac;          // manejo ajustado por tráfico (seg)
+  const svcTotal = ordered.length*svcMin*60;  // servicio total (seg)
+  const totalReal = driveAdj + svcTotal;      // jornada estimada (seg)
+
+  // dibujar
+  renderStops(true);
+  drawMarkers(ordered,true);
+  await drawRealRoute([origin,...ordered], usedReal);
+
+  // resumen
+  $('kStops').textContent=ordered.length;
+  $('kDist').textContent=fmtKm(totDist);
+  $('kDrive').textContent=fmtMin(driveAdj);
+  $('kTotal').textContent=fmtMin(totalReal);
+  $('summary').style.display='flex';
+  $('btnGmaps').disabled=false; $('btnWaze').disabled=false;
+  $('btnOpt').disabled=false;
+
+  const base = usedReal?'Ruta optimizada por calles reales.':'Ruta optimizada (respaldo geográfico — sin servicio de calles).';
+  const detalle = ' Manejo base OSRM '+fmtMin(totDrive)+' ×'+trafFac+' tráfico = '+fmtMin(driveAdj)+
+                  '; + '+ordered.length+' paradas × '+svcMin+' min servicio = '+fmtMin(totalReal)+' total.';
+  setStatus(base+detalle, usedReal?'ok':'err');
+}
+
+/* ---- OSRM matriz de tiempos/distancias ---- */
+async function osrmTable(pts){
+  // OSRM table admite muchas coordenadas; limitamos por seguridad de URL
+  const coords = pts.map(p=>p.lng+','+p.lat).join(';');
+  const url='https://router.project-osrm.org/table/v1/driving/'+coords+'?annotations=duration,distance';
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),15000);
+  const res=await fetch(url,{signal:ctrl.signal}); clearTimeout(to);
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json();
+  if(j.code!=='Ok'||!j.durations) throw new Error('OSRM '+j.code);
+  // distancias pueden venir null si no se pidieron; usamos duration como base
+  const time=j.durations;
+  const dist=j.distances || time.map(row=>row.map(v=>v*11)); // estimado si falta
+  return {time,dist};
+}
+
+/* ---- respaldo Haversine ---- */
+function haversineMatrix(pts){
+  const R=6371000, rad=x=>x*Math.PI/180;
+  const n=pts.length, dist=[],time=[];
+  for(let i=0;i<n;i++){ dist[i]=[];time[i]=[];
+    for(let j=0;j<n;j++){
+      if(i===j){dist[i][j]=0;time[i][j]=0;continue;}
+      const dLat=rad(pts[j].lat-pts[i].lat), dLng=rad(pts[j].lng-pts[i].lng);
+      const a=Math.sin(dLat/2)**2+Math.cos(rad(pts[i].lat))*Math.cos(rad(pts[j].lat))*Math.sin(dLng/2)**2;
+      const d=2*R*Math.asin(Math.sqrt(a));
+      dist[i][j]=d*1.35;            // factor de sinuosidad urbana
+      time[i][j]=(d*1.35)/(22/3.6); // ~22 km/h promedio Lima
+    }
+  }
+  return {dist,time};
+}
+
+/* ---- TSP: vecino más cercano + 2-opt (ruta abierta desde 0) ---- */
+function solveTSP(m,n){
+  const t=m.time;
+  const visited=new Array(n).fill(false);
+  let route=[0]; visited[0]=true;
+  for(let step=1;step<n;step++){
+    const last=route[route.length-1];
+    let best=-1,bd=Infinity;
+    for(let j=0;j<n;j++) if(!visited[j]&&t[last][j]<bd){bd=t[last][j];best=j;}
+    route.push(best); visited[best]=true;
+  }
+  // 2-opt (no toca el índice 0 = origen)
+  let improved=true, pass=0;
+  while(improved && pass<60){
+    improved=false; pass++;
+    for(let i=1;i<n-1;i++){
+      for(let k=i+1;k<n;k++){
+        const a=route[i-1],b=route[i],c=route[k],d=route[k+1];
+        const before=t[a][b]+(d!=null?t[c][d]:0);
+        const after =t[a][c]+(d!=null?t[b][d]:0);
+        if(after+1e-6<before){
+          let lo=i,hi=k; while(lo<hi){const tmp=route[lo];route[lo]=route[hi];route[hi]=tmp;lo++;hi--;}
+          improved=true;
+        }
+      }
+    }
+  }
+  return route;
+}
+
+/* ---- geometría real para dibujar la línea ---- */
+async function drawRealRoute(seq, useReal){
+  if(!layerRoute) return;
+  layerRoute.clearLayers();
+  if(useReal){
+    try{
+      const coords=seq.map(p=>p.lng+','+p.lat).join(';');
+      const url='https://router.project-osrm.org/route/v1/driving/'+coords+'?overview=full&geometries=geojson';
+      const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),15000);
+      const res=await fetch(url,{signal:ctrl.signal}); clearTimeout(to);
+      const j=await res.json();
+      if(j.code==='Ok'&&j.routes&&j.routes[0]){
+        const line=j.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+        // Casing: línea oscura gruesa debajo para separar del mapa
+        L.polyline(line,{color:'#0a1a2f',weight:9,opacity:.9,lineJoin:'round',lineCap:'round'}).addTo(layerRoute);
+        // Línea azul-cian brillante encima (alto contraste sobre OSM)
+        L.polyline(line,{color:'#00b4ff',weight:5,opacity:1,lineJoin:'round',lineCap:'round'}).addTo(layerRoute);
+        return;
+      }
+    }catch(e){/* cae a línea recta */}
+  }
+  // respaldo: líneas rectas punteadas (mismo esquema de contraste)
+  const pts=seq.map(p=>[p.lat,p.lng]);
+  L.polyline(pts,{color:'#0a1a2f',weight:6,opacity:.8,lineCap:'round'}).addTo(layerRoute);
+  L.polyline(pts,{color:'#00b4ff',weight:3,opacity:.95,dashArray:'10,8',lineCap:'round'}).addTo(layerRoute);
+}
+
+/* ============================================================
+   CARGA DE GOOGLE SHEETS (gviz CSV)
+   ============================================================ */
+function sheetCsvUrl(url){
+  const m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if(!m) return null;
+  const id=m[1];
+  const gid=(url.match(/[#&?]gid=(\d+)/)||[])[1] || '0';
+  return {id,gid};
+}
+
+// Construye la lista de URLs a intentar, en orden de preferencia.
+// Cada método esquiva el problema de CORS de forma distinta.
+function buildCsvSources(id,gid){
+  const gviz='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&gid='+gid;
+  const exp ='https://docs.google.com/spreadsheets/d/'+id+'/export?format=csv&gid='+gid;
+  return [
+    {name:'gviz directo',         url:gviz},
+    {name:'export directo',       url:exp},
+    // Proxies CORS públicos de respaldo (envuelven la petición)
+    {name:'proxy (corsproxy.io)', url:'https://corsproxy.io/?url='+encodeURIComponent(exp)},
+    {name:'proxy (allorigins)',   url:'https://api.allorigins.win/raw?url='+encodeURIComponent(exp)},
+  ];
+}
+
+async function tryFetchCsv(url){
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),15000);
+  let res;
+  try{ res=await fetch(url,{signal:ctrl.signal,redirect:'follow'}); }
+  finally{ clearTimeout(to); }
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const txt=await res.text();
+  if(txt.trim().startsWith('<')) throw new Error('respuesta HTML (no CSV)');
+  if(txt.trim()==='') throw new Error('respuesta vacía');
+  return txt;
+}
+
+async function loadSheet(){
+  const url=$('sheetUrl').value.trim();
+  if(!url){ setStatus('Pega la URL de tu Google Sheets.','err'); return; }
+  const parsed=sheetCsvUrl(url);
+  if(!parsed){ setStatus('URL no válida. Debe ser un enlace de Google Sheets.','err'); return; }
+
+  const sources=buildCsvSources(parsed.id,parsed.gid);
+  const errors=[];
+  for(let i=0;i<sources.length;i++){
+    const s=sources[i];
+    setStatus('Leyendo Google Sheets… (método '+(i+1)+'/'+sources.length+': '+s.name+')','load');
+    setNet('warn','Conectando');
+    try{
+      const txt=await tryFetchCsv(s.url);
+      setNet('on','Sheets cargado ('+s.name+')');
+      ingest(parseCSV(txt));
+      return; // éxito
+    }catch(e){
+      errors.push(s.name+': '+e.message);
+    }
+  }
+  // todos fallaron
+  setNet('err','Lectura bloqueada');
+  setStatus('No se pudo leer automáticamente por ningún método. Lo más seguro: usa "Pegar CSV". (Detalle: '+errors.join(' · ')+')','err');
+}
+
+/* ---------- eventos ---------- */
+$('btnLoad').onclick=loadSheet;
+$('btnPaste').onclick=()=>{
+  const t=$('csvPaste'), g=$('btnPasteGo');
+  const show=t.style.display==='none';
+  t.style.display=show?'block':'none'; g.style.display=show?'block':'none';
+};
+$('btnPasteGo').onclick=()=>{
+  const txt=$('csvPaste').value.trim();
+  if(!txt){ setStatus('Pega el contenido CSV primero.','err'); return; }
+  setNet('on','CSV manual'); ingest(parseCSV(txt));
+};
+$('selChofer').onchange=applyFilter;
+$('selFecha').onchange=applyFilter;
+$('btnZonaAll').onclick=()=>{ ZONA_KEYS.forEach(k=>{const e=$('z_'+k);if(e)e.checked=true;}); applyFilter(); };
+$('btnZonaNone').onclick=()=>{ ZONA_KEYS.forEach(k=>{const e=$('z_'+k);if(e)e.checked=false;}); applyFilter(); };
+$('btnOpt').onclick=optimize;
+$('btnClear').onclick=()=>{ if(layerRoute) layerRoute.clearLayers(); ordered=[]; $('summary').style.display='none';
+  $('btnGmaps').disabled=true; $('btnWaze').disabled=true; applyFilter(); setStatus('Ruta limpiada.','ok'); };
+$('oLat').onchange=$('oLng').onchange=$('oName').onchange=()=>{
+  origin.lat=num($('oLat').value); origin.lng=num($('oLng').value); origin.name=$('oName').value||'Origen'; drawOrigin();
+};
+
+/* ---------- exportar ---------- */
+$('btnGmaps').onclick=()=>{
+  const seq=ordered.length?ordered:stops;
+  if(!seq.length) return;
+  // Google Maps: origin + hasta 9 waypoints + destination por enlace
+  const all=[origin,...seq];
+  const chunks=[];
+  // dividir respetando continuidad (cada tramo arranca donde terminó el anterior)
+  let i=0;
+  while(i<all.length-1){
+    const slice=all.slice(i, i+10); // máx 10 puntos = origen+8+destino aprox
+    chunks.push(slice);
+    i+=9;
+  }
+  chunks.forEach((c,idx)=>{
+    const path=c.map(p=>p.lat+','+p.lng).join('/');
+    window.open('https://www.google.com/maps/dir/'+path,'_blank');
+  });
+  if(chunks.length>1) setStatus('Ruta dividida en '+chunks.length+' tramos (límite de Google Maps).','ok');
+};
+$('btnWaze').onclick=()=>{
+  const seq=ordered.length?ordered:stops;
+  if(!seq.length) return;
+  const s=seq[0];
+  window.open('https://waze.com/ul?ll='+s.lat+','+s.lng+'&navigate=yes','_blank');
+};
+
+/* ---------- init ---------- */
+initMap();
+setNet('','Sin conectar');
+</script>
+</body>
+</html>
